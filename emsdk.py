@@ -2166,18 +2166,27 @@ def is_os_64bit():
   return platform.machine().endswith('64')
 
 
-def find_latest_releases_version():
+def find_latest_version():
+  return resolve_sdk_aliases('latest')
+
+
+def find_latest_hash():
+  version = find_latest_version()
   releases_info = load_releases_info()
-  return releases_info['latest']
+  return releases_info['releases'][version]
 
 
-def find_latest_releases_hash():
+def resolve_sdk_aliases(name, verbose=False):
   releases_info = load_releases_info()
-  return releases_info['releases'][find_latest_releases_version()]
+  if name in releases_info['aliases']:
+    if verbose:
+      print("Resolving SDK alias '%s' to '%s'" % (name, releases_info['aliases'][name]))
+    return releases_info['aliases'][name]
+  return name
 
 
-def find_latest_releases_sdk(which):
-  return 'sdk-releases-%s-%s-64bit' % (which, find_latest_releases_hash())
+def find_latest_sdk(which):
+  return 'sdk-releases-%s-%s-64bit' % (which, find_latest_hash())
 
 
 def find_tot_sdk():
@@ -2775,12 +2784,10 @@ def expand_sdk_name(name, activating):
     name = name.replace('upstream-master', 'upstream-main')
   if name in ('latest-fastcomp', 'latest-releases-fastcomp', 'tot-fastcomp', 'sdk-nightly-latest'):
     exit_with_fastcomp_error()
-  if name in ('latest', 'sdk-latest', 'latest-64bit', 'sdk-latest-64bit'):
-    # This is effectly the default SDK
-    return str(find_latest_releases_sdk('upstream'))
-  elif name in ('latest-upstream', 'latest-clang-upstream', 'latest-releases-upstream'):
-    return str(find_latest_releases_sdk('upstream'))
-  elif name in ('tot', 'sdk-tot', 'tot-upstream'):
+  if name in ('latest', 'sdk-latest', 'latest-64bit', 'sdk-latest-64bit', 'latest-upstream', 'latest-clang-upstream', 'latest-releases-upstream'):
+    name = 'latest'
+  name = resolve_sdk_aliases(name, verbose=True)
+  if name in ('tot', 'sdk-tot', 'tot-upstream'):
     if activating:
       # When we are activating a tot release, assume that the currently
       # installed SDK, if any, is the tot release we want to activate.
@@ -2817,7 +2824,9 @@ def expand_sdk_name(name, activating):
           backend = 'upstream'
         else:
           backend = 'fastcomp'
-      return 'sdk-releases-%s-%s-64bit' % (backend, release_hash)
+      full_name = 'sdk-releases-%s-%s-64bit' % (backend, release_hash)
+      print("Resolving SDK version '%s' to '%s'" % (version, full_name))
+      return full_name
     elif len(version) == 40:
       if backend is None:
         backend = 'upstream'
@@ -3043,15 +3052,15 @@ def main(args):
       return 'INSTALLED' if sdk and sdk.is_installed() else ''
 
     if (LINUX or MACOS or WINDOWS) and (ARCH == 'x86' or ARCH == 'x86_64'):
-      print('The *recommended* precompiled SDK download is %s (%s).' % (find_latest_releases_version(), find_latest_releases_hash()))
+      print('The *recommended* precompiled SDK download is %s (%s).' % (find_latest_version(), find_latest_hash()))
       print()
       print('To install/activate it, use one of:')
       print('         latest                  [default (llvm) backend]')
       print('         latest-fastcomp         [legacy (fastcomp) backend]')
       print('')
       print('Those are equivalent to installing/activating the following:')
-      print('         %s             %s' % (find_latest_releases_version(), installed_sdk_text(find_latest_releases_sdk('upstream'))))
-      print('         %s-fastcomp    %s' % (find_latest_releases_version(), installed_sdk_text(find_latest_releases_sdk('fastcomp'))))
+      print('         %s             %s' % (find_latest_version(), installed_sdk_text(find_latest_sdk('upstream'))))
+      print('         %s-fastcomp    %s' % (find_latest_version(), installed_sdk_text(find_latest_sdk('fastcomp'))))
       print('')
     else:
       print('Warning: your platform does not have precompiled SDKs available.')
